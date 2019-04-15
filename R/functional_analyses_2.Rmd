@@ -1,0 +1,393 @@
+---
+title: ''
+author: "Mikhail Dozmorov"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+# Set up the environment
+library(knitr)
+opts_chunk$set(cache.path='cache/', fig.path='img/', cache=F, tidy=T, fig.keep='high', echo=F, dpi=100, warnings=F, message=F, comment=NA, warning=F, results='as.is')
+library(pander)
+panderOptions('table.split.table', Inf)
+set.seed(1)
+library(dplyr)
+options(stringsAsFactors = FALSE, width=400)
+```
+
+```{r}
+# devtools::install_github('mdozmorov/MDmisc')
+library(MDmisc)
+# devtools::install_github('mdozmorov/enrichR')
+source("https://raw.githubusercontent.com/mdozmorov/enrichR/master/R/api_wrapper.R")
+```
+
+
+# EnrichR
+
+```{r settings}
+data_dir       <- "/Users/mdozmorov/Documents/Data/VCU_work/Spiegel/2019-04.Sphk2/" # Working directory
+# Files for input and output
+fileNameIn  <- paste0(data_dir, "results/DEGs.xlsx")
+fileNameRes <- paste0(data_dir, "results/DEGs_functional_enrichment.xlsx")
+# P-value cutoff settings
+p_adj_cutoff   <- 0.05 # FDR cutoff for genes
+enrichr_cutoff <- 0.3  # FDR cutoff for enrichments
+# Which pathway enrichment analysis to run
+run_gsea       <- FALSE # If TRUE, GSEA pathway enrichment analysis is run, otherwise, standard hypergeometric-based enrichment
+ntable         <- 15 # Number of genes to output in a DEG table
+nkegg          <- 35 # Number of genes to output in a KEGG table
+min_kegg_genes <- 20 # Minimum number of genes to run enrichment analysis on
+max_kegg_genes <- 2000 # Maximum number of genes to run enrichment analysis on
+up_dn_separate <- TRUE # Whether to run KEGG separately on up- and downregulated genes. FALSE - do not distinguish directionality
+
+# Create (or, load)  Excel file
+unlink(fileNameRes)
+wb <- openxlsx::createWorkbook(fileNameRes) # openxlsx::loadWorkbook(fileNameRes) # 
+```
+
+```{r loadData}
+res <- openxlsx::read.xlsx(fileNameIn) # Read in differential expression statistics
+res <- res[ res$FDR < p_adj_cutoff, ] # Filter by FDR cutoff
+```
+
+# Enrichment analysis
+
+Up- and downregulated genes are tested for functional enrichment `r paste(ifelse(up_dn_separate, "separately", "jointly"))`. `r paste(ifelse(up_dn_separate, "Each table has enrichment results for both up-/downregulated genes. The \"direction\" column indicate which pathways are enriched in \"UP\"- or \"DN\"-regulated genes.", ""))`. FDR cutoff of the significant enrichments - `r enrichr_cutoff`. Top `r ntable` genes shown.
+
+## KEGG pathway enrichment analysis 
+
+**Legend:** "database" - source of functional annotations, "category" - name of functional annotation,  "pval" - unadjusted enrichment p-value,  "qval" - FDR-adjusted p-value,  "genes" - comma-separated differentially expressed genes enriched in a corresponding functional category. `r paste(ifelse(up_dn_separate, "\"direction\" - UP/DN, an indicator whether genes are up- or downregulated.", ""))` 
+
+```{r}
+if( run_gsea == FALSE) {
+  # Subset the number of DEGs for KEGG analysis to the maximum
+  if (nrow(res) > max_kegg_genes) {
+    degs_subset <- res[1:max_kegg_genes, ]
+  } else {
+    degs_subset <- res
+  }
+  # Get list of up- and downregulated genes
+  up.genes <- sort(unique(degs_subset$symbol[ degs_subset$logFC > 0 ]))
+  dn.genes <- sort(unique(degs_subset$symbol[ degs_subset$logFC < 0 ]))
+  # Run KEGG
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("KEGG pathway run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "KEGG_2016", fdr.cutoff = p_adj_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("KEGG pathway run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "KEGG_2016", fdr.cutoff = p_adj_cutoff, fileName = fileNameRes, wb = wb)
+  }
+}
+```
+
+A total of `r nrow(res.kegg)` KEGG pathways were detected as significantly affected at FDR `r p_adj_cutoff`. Top `r ntable` shown.
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## GO_Biological_Process_2015
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("GO_Biological_Process_2015 run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "GO_Biological_Process_2015", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("GO_Biological_Process_2015 run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "GO_Biological_Process_2015", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## GO_Molecular_Function_2015
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("GO_Molecular_Function_2015 run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "GO_Molecular_Function_2015", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("GO_Molecular_Function_2015 run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "GO_Molecular_Function_2015", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## GO_Cellular_Component_2015
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("GO_Cellular_Component_2015 run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "GO_Cellular_Component_2015", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("GO_Cellular_Component_2015 run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "GO_Cellular_Component_2015", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## WikiPathways_2016
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("WikiPathways_2016 run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "WikiPathways_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("WikiPathways_2016 run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "WikiPathways_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## BioCarta_2016
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("BioCarta_2016 run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "BioCarta_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("BioCarta_2016 run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "BioCarta_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## Reactome_2016
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("Reactome_2016 run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "Reactome_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("Reactome_2016 run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "Reactome_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## Panther_2016
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("Panther_2016 run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "Panther_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("Panther_2016 run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "Panther_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## TRANSFAC_and_JASPAR_PWMs
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("TRANSFAC_and_JASPAR_PWMs run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "TRANSFAC_and_JASPAR_PWMs", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("TRANSFAC_and_JASPAR_PWMs run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "TRANSFAC_and_JASPAR_PWMs", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## Genome_Browser_PWMs
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("Genome_Browser_PWMs run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "Genome_Browser_PWMs", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("Genome_Browser_PWMs run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "Genome_Browser_PWMs", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## ChEA_2016
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("ChEA_2016 run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "ChEA_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("ChEA_2016 run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "ChEA_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## ENCODE_TF_ChIP-seq_2015
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("ENCODE_TF_ChIP-seq_2015 run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "ENCODE_TF_ChIP-seq_2015", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("ENCODE_TF_ChIP-seq_2015 run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "ENCODE_TF_ChIP-seq_2015", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## ENCODE_Histone_Modifications_2015
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("ENCODE_Histone_Modifications_2015 run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "ENCODE_Histone_Modifications_2015", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("ENCODE_Histone_Modifications_2015 run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "ENCODE_Histone_Modifications_2015", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+## Epigenomics_Roadmap_HM_ChIP-seq
+
+```{r}
+  if (up_dn_separate) {
+    # Analyze up- and downregulated genes separately
+    print(paste0("Epigenomics_Roadmap_HM_ChIP-seq run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "Epigenomics_Roadmap_HM_ChIP-seq", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  } else {
+    # Analyze up- and downregulated genes together
+    print(paste0("Epigenomics_Roadmap_HM_ChIP-seq run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "Epigenomics_Roadmap_HM_ChIP-seq", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+  }
+```
+
+```{r}
+# Display the results
+# DT::datatable(res.kegg)
+if (nrow(res.kegg) > 0 ) {
+  kable(res.kegg[1:min(ntable, nrow(res.kegg)), ])
+}
+```
+
+
