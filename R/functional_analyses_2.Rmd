@@ -25,8 +25,9 @@ library(MDmisc)
 source("https://raw.githubusercontent.com/mdozmorov/enrichR/master/R/api_wrapper.R")
 ```
 
-
 # EnrichR
+
+http://amp.pharm.mssm.edu/Enrichr/#stats
 
 ```{r settings}
 data_dir       <- "/Users/mdozmorov/Documents/Data/VCU_work/Spiegel/2019-04.Sphk2/" # Working directory
@@ -210,11 +211,11 @@ if (nrow(res.kegg) > 0 ) {
   if (up_dn_separate) {
     # Analyze up- and downregulated genes separately
     print(paste0("BioCarta run on ", length(up.genes), " upregulated and ", length(dn.genes), " downregulated genes."))
-    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "BioCarta_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+    res.kegg <- save_enrichr(up.genes = up.genes, dn.genes = dn.genes, databases = "BioCarta_2017", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
   } else {
     # Analyze up- and downregulated genes together
     print(paste0("BioCarta run on ", length(unique(c(up.genes, dn.genes))), " genes without distinguishing them by directionality."))
-    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "BioCarta_2016", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
+    res.kegg <- MDmisc::save_enrichr(up.genes = unique(c(up.genes, dn.genes)), databases = "BioCarta_2017", fdr.cutoff = enrichr_cutoff, fileName = fileNameRes, wb = wb)
   }
 ```
 
@@ -350,7 +351,7 @@ if (nrow(res.kegg) > 0 ) {
   }
 ```
 
-```{r}
+```{r eval=FALSE}
 # Display the results
 # DT::datatable(res.kegg)
 if (nrow(res.kegg) > 0 ) {
@@ -372,7 +373,7 @@ if (nrow(res.kegg) > 0 ) {
   }
 ```
 
-```{r}
+```{r eval=FALSE}
 # Display the results
 # DT::datatable(res.kegg)
 if (nrow(res.kegg) > 0 ) {
@@ -394,7 +395,7 @@ if (nrow(res.kegg) > 0 ) {
   }
 ```
 
-```{r}
+```{r eval=FALSE}
 # Display the results
 # DT::datatable(res.kegg)
 if (nrow(res.kegg) > 0 ) {
