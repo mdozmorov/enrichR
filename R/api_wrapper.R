@@ -59,7 +59,7 @@ enrichFullGeneList <- function(up.genes, dn.genes, databases = "KEGG_2016", fdr.
 enrichGeneList <- function(gene.list, databases = "KEGG_2016", fdr.cutoff = 0.1) {
   ######Step 1: Post gene list to EnrichR
   req.body <- list(list=paste(gene.list, collapse="\n"))
-  post.req <- httr::POST("http://amp.pharm.mssm.edu/Enrichr/enrich", encode="multipart", body=I(req.body))
+  post.req <- httr::POST("http://amp.pharm.mssm.edu/Enrichr3/addList", encode="multipart", body=I(req.body))
 
   #TODO: Real error handling..
   if (!grepl("success", httr::http_status(post.req)$category, ignore.case=T)) stop("Posting gene list to EnrichR failed")
@@ -68,7 +68,7 @@ enrichGeneList <- function(gene.list, databases = "KEGG_2016", fdr.cutoff = 0.1)
   database.enrichments <- list()
   for (idx in 1:length(databases)) {
     database <- databases[idx]
-    get.req <- httr::GET(paste("http://amp.pharm.mssm.edu/Enrichr/enrich?backgroundType=", database, sep=""))
+    get.req <- httr::GET(paste("http://amp.pharm.mssm.edu/Enrichr3/addList?backgroundType=", database, sep=""))
     if (!grepl("success", httr::http_status(get.req)$category, ignore.case=T)) stop("Retrieving results from EnrichR failed")
 
     response.content <- mungeResponseContent(httr::content(get.req)[[database]])
